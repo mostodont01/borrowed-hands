@@ -69,3 +69,8 @@ def test_few_repeats_not_hidden():
 def test_compact_is_much_shorter():
     many = [x for n in range(30) for x in product(n, 1 + n * 3)]
     assert len(format_page(page(many))) < 0.6 * len(format_page(page(many), full=True))
+
+
+def test_rating_lines_with_digits_are_kept():
+    items = [text("Hodnocení: 5,0 z 5 na základě 1 recenzí") for _ in range(6)]
+    assert format_page(page(items)).count("Hodnocení") == 6

@@ -5,7 +5,8 @@ Compact mode (default) keeps the text short:
 - an image link without a label is dropped when the same URL also appears with a label,
 - buttons/links whose label repeats many times ("Do košíku", "Porovnat", ...) are hidden after
   the first one; they keep their number, so they can still be highlighted,
-- long text lines that repeat many times (delivery notes etc.) are shown once.
+- long text lines without digits that repeat many times (delivery notes etc.) are shown once
+  (lines with digits, like ratings, belong to different products and are kept).
 A footer says what was hidden. Full mode shows everything.
 """
 
@@ -55,7 +56,9 @@ def format_page(page: dict, full: bool = False) -> str:
     label_counts = Counter(
         (i["kind"], i.get("label", "")) for i in items if i["t"] == "el" and i.get("label") and not i.get("href")
     )
-    text_counts = Counter(i["s"] for i in items if i["t"] == "text" and len(i["s"]) >= LONG_LINE)
+    text_counts = Counter(
+        i["s"] for i in items if i["t"] == "text" and len(i["s"]) >= LONG_LINE and not any(c.isdigit() for c in i["s"])
+    )
 
     lines: list[str] = []
     hidden_elements: Counter = Counter()
