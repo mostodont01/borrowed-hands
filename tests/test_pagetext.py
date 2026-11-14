@@ -72,5 +72,5 @@ def test_compact_is_much_shorter():
 
 
 def test_rating_lines_with_digits_are_kept():
-    items = [text("Hodnocení: 5,0 z 5 na základě 1 recenzí") for _ in range(6)]
+    items = [x for n in range(6) for x in (text("Hodnocení: 5,0 z 5 na základě 1 recenzí"), text(f"Product {n}"))]
     assert format_page(page(items)).count("Hodnocení") == 6
