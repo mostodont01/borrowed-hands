@@ -76,3 +76,11 @@ def test_inactivity_timeout_closes_window(window_env, monkeypatch):
     wait_for("timeout_prompt", timeout=15)
     ended = wait_for("session_ended", timeout=15)
     assert ended["reason"] == "timeout"
+
+
+def test_url_change_without_reload(window_env):
+    client.open_window("file://" + os.path.join(PAGES, "spa.html"))
+    wait_for("page_loaded")
+    event = wait_for("page_loaded")
+    assert event.get("without_reload") and event["url"].endswith("?q=dongle")
+    assert "2 results" in client.read()["page"]["text"]

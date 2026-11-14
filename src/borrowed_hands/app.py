@@ -31,7 +31,7 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtWebEngineQuick import QtWebEngineQuick
 
-from borrowed_hands import paths, protocol
+from borrowed_hands import pagetext, paths, protocol
 from borrowed_hands.timeout import InactivityTimer, Phase
 
 HERE = Path(__file__).parent
@@ -80,6 +80,12 @@ class Backend(QObject):
         self.ended_reason: str | None = None
         self.url = ""
         self.title = ""
+        self._loading = False
+        self._reported_url = ""
+        self._url_settle = QTimer(self)
+        self._url_settle.setSingleShot(True)
+        self._url_settle.setInterval(800)
+        self._url_settle.timeout.connect(self._url_settled)
 
         self._tick = QTimer(self)
         self._tick.setInterval(500)
@@ -141,12 +147,33 @@ class Backend(QObject):
     @Slot(str, str)
     def pageLoaded(self, url, title):
         self.url, self.title = url, title
+        self._loading = False
+        self._reported_url = url
         self.activity()
         self.push_event({"type": "page_loaded", "url": url, "title": title})
 
+    @Slot()
+    def pageLoading(self):
+        self._loading = True
+
+    @Slot()
+    def pageLoadFailed(self):
+        self._loading = False
+
     @Slot(str, str)
     def pageChanged(self, url, title):
+        """URL or title changed. If the URL changed without a page load (a single-page app
+        switched content, e.g. Alza's search), report it once things settle."""
         self.url, self.title = url, title
+        if url != self._reported_url:
+            self._url_settle.start()
+
+    def _url_settled(self):
+        if self._loading or self.url == self._reported_url:
+            return
+        self._reported_url = self.url
+        self.activity()
+        self.push_event({"type": "page_loaded", "url": self.url, "title": self.title, "without_reload": True})
 
     @Slot(int, str)
     def jsResult(self, request_id, result_json):
@@ -236,7 +263,9 @@ class Backend(QObject):
                     if not isinstance(page, dict):
                         reply({"ok": False, "error": "page could not be read"})
                         return
-                    page["text"] = protocol.truncate_page(page.get("text", ""))
+                    items = page.pop("items", [])
+                    text = pagetext.format_page({**page, "items": items}, full=bool(msg.get("full")))
+                    page["text"] = protocol.truncate_page(text)
                     reply({"ok": True, "page": page})
 
                 self.run_js(READ_JS, got)

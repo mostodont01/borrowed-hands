@@ -78,8 +78,8 @@ def say(text: str, element: int | None = None) -> dict:
     return request(msg)
 
 
-def read() -> dict:
-    return request({"cmd": "read"}, timeout=30)
+def read(full: bool = False) -> dict:
+    return request({"cmd": "read", "full": full}, timeout=30)
 
 
 def wait(timeout: float = 50.0) -> dict:

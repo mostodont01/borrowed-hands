@@ -1,16 +1,19 @@
-// Turns the current page into plain text for Claude. Interactive elements get a number
-// ([12] button "Hledat") and a data-hands-id attribute so they can be highlighted later.
-// Password values are never included.
+// Collects the current page as a list of items for Claude (formatted in pagetext.py).
+// Interactive elements get a number and a data-hands-id attribute so they can be highlighted
+// later. Password values are never included.
+//   {t: "text", s}            plain text (one block)
+//   {t: "h", level, s}        heading
+//   {t: "el", id, kind, label, extra, href}   interactive element
 (function () {
 	const SKIP = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "SVG", "IFRAME", "CANVAS"]);
 	const INTERACTIVE = "a[href],button,input,select,textarea,summary,[role=button],[role=link]," +
 		"[role=tab],[role=checkbox],[role=radio],[role=option],[role=menuitem],[contenteditable=true]";
-	const lines = [];
+	const items = [];
 	let current = [];
 	let count = 0;
 	const flush = () => {
 		const t = clean(current.join(" ").replace(/\s+([.,:;!?])/g, "$1"));
-		if (t) lines.push(t);
+		if (t) items.push({ t: "text", s: t });
 		current = [];
 	};
 	const INLINE = new Set(["inline", "inline-block", "inline-flex", "contents"]);
@@ -44,8 +47,8 @@
 			const opt = el.options[el.selectedIndex];
 			extra = opt ? ` selected="${short(clean(opt.text))}"` : "";
 		}
-		if (tag === "a" && el.href && !el.href.startsWith("javascript:")) extra += ` -> ${el.href}`;
-		return `${kind} "${short(label)}"${extra}`;
+		const href = tag === "a" && el.href && !el.href.startsWith("javascript:") ? el.href : "";
+		return { kind: kind, label: short(label), extra: extra, href: href };
 	}
 
 	function walk(node) {
@@ -63,14 +66,14 @@
 			flush();
 			count += 1;
 			el.setAttribute("data-hands-id", String(count));
-			lines.push(`[${count}] ${describe(el)}`);
+			items.push(Object.assign({ t: "el", id: count }, describe(el)));
 			return;
 		}
 		const h = /^H([1-6])$/.exec(el.tagName);
 		if (h) {
 			flush();
 			const t = clean(el.innerText);
-			if (t) lines.push("#".repeat(Number(h[1])) + " " + t);
+			if (t) items.push({ t: "h", level: Number(h[1]), s: t });
 			return;
 		}
 		const block = !INLINE.has(getComputedStyle(el).display) || el.tagName === "BR";
@@ -81,7 +84,5 @@
 
 	if (document.body) walk(document.body);
 	flush();
-	// Merge consecutive duplicates (common with nested markup).
-	const text = lines.filter((l, i) => l !== lines[i - 1]).join("\n");
-	return { url: location.href, title: document.title, elements: count, text: text };
+	return { url: location.href, title: document.title, elements: count, items: items };
 })();

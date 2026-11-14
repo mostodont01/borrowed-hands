@@ -91,8 +91,12 @@ ApplicationWindow {
 					profile.httpUserAgent = profile.httpUserAgent.replace(/QtWebEngine\/\S+\s*/, "")
 				}
 				onLoadingChanged: function (info) {
-					if (info.status === WebEngineView.LoadSucceededStatus)
+					if (info.status === WebEngineView.LoadStartedStatus)
+						backend.pageLoading()
+					else if (info.status === WebEngineView.LoadSucceededStatus)
 						backend.pageLoaded(web.url.toString(), web.title)
+					else
+						backend.pageLoadFailed()
 				}
 				onUrlChanged: { address.text = web.url.toString(); backend.pageChanged(web.url.toString(), web.title) }
 				onTitleChanged: backend.pageChanged(web.url.toString(), web.title)
@@ -126,14 +130,39 @@ ApplicationWindow {
 					color: root.cardColor
 					border.color: backend.instruction ? root.accentColor : "#383d46"
 
-					Text {
+					TextEdit {
 						id: instructionText
+						objectName: "instructionText"
 						anchors.fill: parent
 						anchors.margins: 14
+						anchors.rightMargin: 40
 						text: backend.instruction || "Waiting for Claude…"
 						color: backend.instruction ? root.textColor : root.mutedColor
 						font.pixelSize: 17
-						wrapMode: Text.Wrap
+						wrapMode: TextEdit.Wrap
+						textFormat: TextEdit.PlainText
+						readOnly: true
+						selectByMouse: true
+						selectionColor: "#3b6fd4"
+						selectedTextColor: "#ffffff"
+					}
+					VButton {
+						objectName: "copyButton"
+						anchors.top: parent.top
+						anchors.right: parent.right
+						anchors.margins: 6
+						text: copied.running ? "✓" : "⧉"
+						subtle: true
+						visible: backend.instruction !== ""
+						ToolTip.visible: hovered
+						ToolTip.text: "Copy"
+						onClicked: {
+							instructionText.selectAll()
+							instructionText.copy()
+							instructionText.deselect()
+							copied.restart()
+						}
+						Timer { id: copied; interval: 1200 }
 					}
 				}
 
@@ -192,12 +221,16 @@ ApplicationWindow {
 					spacing: 6
 					model: backend.history
 					onCountChanged: positionViewAtEnd()
-					delegate: Text {
+					delegate: TextEdit {
 						required property var modelData
 						width: historyList.width
-						wrapMode: Text.Wrap
+						wrapMode: TextEdit.Wrap
 						font.pixelSize: 12
-						textFormat: Text.PlainText
+						textFormat: TextEdit.PlainText
+						readOnly: true
+						selectByMouse: true
+						selectionColor: "#3b6fd4"
+						selectedTextColor: "#ffffff"
 						color: modelData.who === "claude" ? root.textColor : root.accentColor
 						text: (modelData.who === "claude" ? "Claude: " : "You: ") + modelData.text
 					}

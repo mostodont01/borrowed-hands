@@ -1,0 +1,11 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>SPA</title></head>
+<body><h1>Search</h1><div id="out"></div>
+<script>
+// Like Alza's search: content and URL change without a page load.
+setTimeout(() => {
+  history.pushState({}, "", "?q=dongle");
+  document.title = "Results for dongle";
+  document.getElementById("out").textContent = "2 results";
+}, 1500);
+</script></body></html>

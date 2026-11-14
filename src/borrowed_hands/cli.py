@@ -24,6 +24,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-e", "--element", type=int, help="highlight element N from the last read")
     p = sub.add_parser("read", help="print the current page as text")
     p.add_argument("--json", action="store_true", help="print the full JSON reply")
+    p.add_argument("--full", action="store_true", help="don't hide repeated elements")
     p = sub.add_parser("wait", help="wait for progress (page load, Done, reply, timeout)")
     p.add_argument("-t", "--timeout", type=float, default=50.0)
     p = sub.add_parser("navigate", help="load a URL in the open window")
@@ -40,7 +41,7 @@ def main(argv: list[str] | None = None) -> int:
             case "say":
                 return _print(client.say(args.text, args.element))
             case "read":
-                result = client.read()
+                result = client.read(args.full)
                 if args.json or not result.get("ok"):
                     return _print(result)
                 page = result["page"]

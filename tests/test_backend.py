@@ -65,10 +65,10 @@ def test_say_sets_instruction_and_history(setup):
 def test_read_uses_js_result(setup):
     backend, _, replies = setup
     backend.runJs.connect(
-        lambda rid, js: backend.jsResult(rid, '{"url": "u", "title": "t", "elements": 1, "text": "hi"}')
+        lambda rid, js: backend.jsResult(rid, '{"url": "u", "title": "t", "elements": 0, "items": [{"t": "text", "s": "hi"}]}')
     )
     backend.handle({"cmd": "read"}, replies.append)
-    assert replies[0] == {"ok": True, "page": {"url": "u", "title": "t", "elements": 1, "text": "hi"}}
+    assert replies[0] == {"ok": True, "page": {"url": "u", "title": "t", "elements": 0, "text": "hi"}}
 
 
 def test_timeout_prompt_then_no_answer_ends(setup):
@@ -117,3 +117,26 @@ def test_unknown_command(setup):
     backend, _, replies = setup
     backend.handle({"cmd": "dance"}, replies.append)
     assert replies[0]["ok"] is False
+
+
+def test_url_change_without_reload_is_reported(setup, qtbot):
+    backend, _, replies = setup
+    backend.pageLoaded("https://x.cz/", "X")
+    backend.handle({"cmd": "wait", "timeout": 5}, replies.append)
+    replies.clear()
+    backend.pageChanged("https://x.cz/?q=a", "X")
+    backend.handle({"cmd": "wait", "timeout": 5}, replies.append)
+    qtbot.waitUntil(lambda: bool(replies), timeout=3000)
+    event = replies[0]["events"][0]
+    assert event == {"type": "page_loaded", "url": "https://x.cz/?q=a", "title": "X", "without_reload": True}
+
+
+def test_url_change_during_load_not_double_reported(setup, qtbot):
+    backend, _, replies = setup
+    backend.pageLoading()
+    backend.pageChanged("https://x.cz/next", "")
+    qtbot.wait(1000)
+    backend.pageLoaded("https://x.cz/next", "Next")
+    backend.handle({"cmd": "wait", "timeout": 5}, replies.append)
+    assert [e["type"] for e in replies[0]["events"]] == ["page_loaded"]
+    assert "without_reload" not in replies[0]["events"][0]

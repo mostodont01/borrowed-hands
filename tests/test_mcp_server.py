@@ -31,7 +31,7 @@ class FakeClient:
             return self.waits.pop(0)
         return {"ok": True, "status": "still_waiting", "events": []}
 
-    def read(self):
+    def read(self, full=False):
         self._check()
         return {"ok": True, "page": {"url": "u", "title": "t", "elements": 0, "text": "x"}}
 

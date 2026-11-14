@@ -15,7 +15,7 @@ uv sync
 uv run hands open alza.cz          # opens the window
 uv run hands say "Search for 'USB WiFi dongle'"
 uv run hands wait                  # waits for a page load, Done, a reply, or the timeout
-uv run hands read                  # the page as text, interactive elements numbered
+uv run hands read                  # the page as text, interactive elements numbered (--full: no hiding)
 uv run hands say "Open this one" -e 12   # highlight element 12
 uv run hands close
 ```

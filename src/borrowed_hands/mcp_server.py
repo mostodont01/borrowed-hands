@@ -21,6 +21,7 @@ Rules:
   (typing into search boxes, clicking buttons, solving captchas, logging in).
 - One short, concrete step per instruction ("Type 'USB WiFi dongle' into the search box and
   press Enter"). Pass element=N (from read_page) to highlight what to click.
+- page_loaded also fires when a site changes the page without reloading ("without_reload").
 - instruct and wait return events: page_loaded, done, cant, reply (user's text),
   timeout_prompt, session_ended. "still_waiting" means nothing happened yet: just call wait
   again. Never give up on still_waiting; the user may be slow.
@@ -90,10 +91,12 @@ async def wait() -> dict:
 
 
 @server.tool()
-async def read_page() -> dict:
+async def read_page(full: bool = False) -> dict:
     """The current page as text: headings, text and numbered interactive elements
-    ([12] button "Hledat", links with their URL). Password values are never included."""
-    return await _call(client.read)
+    ([12] button "Hledat", links with their URL). Compact by default: repeated buttons and
+    lines are hidden after the first (a footer lists them) and same-site links are relative.
+    full=True shows everything. Password values are never included."""
+    return await _call(client.read, full)
 
 
 @server.tool()
