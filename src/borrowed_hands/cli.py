@@ -30,6 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("url")
     sub.add_parser("close", help="close the window")
     sub.add_parser("status", help="is the window open?")
+    sub.add_parser("mcp", help="run the MCP server (stdio) for Claude Code")
 
     args = parser.parse_args(argv)
     try:
@@ -51,6 +52,11 @@ def main(argv: list[str] | None = None) -> int:
                 return _print(client.navigate(args.url))
             case "close":
                 return _print(client.close())
+            case "mcp":
+                from borrowed_hands import mcp_server
+
+                mcp_server.main()
+                return 0
             case "status":
                 running = client.is_running()
                 print("open" if running else "closed")
