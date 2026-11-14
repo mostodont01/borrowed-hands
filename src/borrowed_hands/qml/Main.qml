@@ -17,6 +17,7 @@ ApplicationWindow {
 	readonly property color mutedColor: "#929ba8"
 	readonly property color accentColor: "#72a7ff"
 	readonly property color warnColor: "#fbbf24"
+	readonly property color okColor: "#4ade80"
 
 	onClosing: backend.windowClosing()
 
@@ -128,14 +129,15 @@ ApplicationWindow {
 					implicitHeight: instructionText.implicitHeight + 28
 					radius: 8
 					color: root.cardColor
-					border.color: backend.instruction ? root.accentColor : "#383d46"
+					border.color: backend.statusKind === "detected" ? root.okColor
+						: backend.instruction ? root.accentColor : "#383d46"
+					Behavior on border.color { ColorAnimation { duration: 150 } }
 
 					TextEdit {
 						id: instructionText
 						objectName: "instructionText"
 						anchors.fill: parent
 						anchors.margins: 14
-						anchors.rightMargin: 40
 						text: backend.instruction || "Waiting for Claude…"
 						color: backend.instruction ? root.textColor : root.mutedColor
 						font.pixelSize: 17
@@ -146,23 +148,59 @@ ApplicationWindow {
 						selectionColor: "#3b6fd4"
 						selectedTextColor: "#ffffff"
 					}
-					VButton {
-						objectName: "copyButton"
-						anchors.top: parent.top
-						anchors.right: parent.right
-						anchors.margins: 6
-						text: copied.running ? "✓" : "⧉"
-						subtle: true
-						visible: backend.instruction !== ""
-						ToolTip.visible: hovered
-						ToolTip.text: "Copy"
-						onClicked: {
-							instructionText.selectAll()
-							instructionText.copy()
-							instructionText.deselect()
-							copied.restart()
-						}
-						Timer { id: copied; interval: 1200 }
+				}
+
+				// Copies only the text to type (the quoted part of the instruction).
+				VButton {
+					id: copyButton
+					objectName: "copyButton"
+					Layout.fillWidth: true
+					implicitHeight: 32
+					visible: backend.copyText !== ""
+					text: copied.running ? "✓ Copied" : "⧉  Copy  \u201c" + backend.copyText + "\u201d"
+					ToolTip.visible: hovered
+					ToolTip.text: "Copy the text to type"
+					onClicked: {
+						copyHelper.text = backend.copyText
+						copyHelper.selectAll()
+						copyHelper.copy()
+						copied.restart()
+					}
+					Timer { id: copied; interval: 1200 }
+					TextEdit { id: copyHelper; visible: false }
+				}
+
+				// What the window has noticed, updated instantly.
+				Rectangle {
+					objectName: "statusBar"
+					Layout.fillWidth: true
+					implicitHeight: 30
+					radius: 6
+					visible: backend.status !== ""
+					color: backend.statusKind === "detected" ? "#1d3a2a" : "#262b33"
+					Behavior on color { ColorAnimation { duration: 150 } }
+					Text {
+						id: statusText
+						objectName: "statusText"
+						anchors.fill: parent
+						anchors.leftMargin: 10
+						verticalAlignment: Text.AlignVCenter
+						elide: Text.ElideRight
+						font.pixelSize: 13
+						font.bold: backend.statusKind === "detected"
+						text: backend.status
+						color: backend.statusKind === "detected" ? root.okColor
+							: backend.statusKind === "working" ? root.accentColor : root.mutedColor
+					}
+					SequentialAnimation on opacity {
+						id: flash
+						running: false
+						NumberAnimation { to: 0.4; duration: 90 }
+						NumberAnimation { to: 1.0; duration: 160 }
+					}
+					Connections {
+						target: backend
+						function onStatusChanged() { if (backend.statusKind === "detected") flash.restart() }
 					}
 				}
 

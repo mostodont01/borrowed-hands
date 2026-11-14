@@ -32,6 +32,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtWebEngineQuick import QtWebEngineQuick
 
 from borrowed_hands import pagetext, paths, protocol
+from borrowed_hands.instruction import STATUS_FOR_EVENT, copy_text_for
 from borrowed_hands.timeout import InactivityTimer, Phase
 
 HERE = Path(__file__).parent
@@ -59,6 +60,7 @@ class Backend(QObject):
     """State shown in the window plus the command handling. QML talks to this object."""
 
     instructionChanged = Signal()
+    statusChanged = Signal()
     historyChanged = Signal()
     promptChanged = Signal()
     secondsLeftChanged = Signal()
@@ -71,6 +73,9 @@ class Backend(QObject):
         self._clock = clock
         self._timer = InactivityTimer(clock(), idle_limit, prompt_limit)
         self._instruction = ""
+        self._copy_text = ""
+        self._status = ""
+        self._status_kind = "idle"  # idle | waiting | working | detected
         self._history: list[dict] = []
         self._events: list[dict] = []
         self._waiter = None  # (reply callback, QTimer)
@@ -84,7 +89,7 @@ class Backend(QObject):
         self._reported_url = ""
         self._url_settle = QTimer(self)
         self._url_settle.setSingleShot(True)
-        self._url_settle.setInterval(800)
+        self._url_settle.setInterval(400)
         self._url_settle.timeout.connect(self._url_settled)
 
         self._tick = QTimer(self)
@@ -93,6 +98,22 @@ class Backend(QObject):
         self._tick.start()
 
     # ---- properties for QML ------------------------------------------------------------
+
+    @Property(str, notify=instructionChanged)
+    def copyText(self):
+        return self._copy_text
+
+    @Property(str, notify=statusChanged)
+    def status(self):
+        return self._status
+
+    @Property(str, notify=statusChanged)
+    def statusKind(self):
+        return self._status_kind
+
+    def set_status(self, text: str, kind: str):
+        self._status, self._status_kind = text, kind
+        self.statusChanged.emit()
 
     @Property(str, notify=instructionChanged)
     def instruction(self):
@@ -155,6 +176,7 @@ class Backend(QObject):
     @Slot()
     def pageLoading(self):
         self._loading = True
+        self.set_status("Page loading…", "working")
 
     @Slot()
     def pageLoadFailed(self):
@@ -201,6 +223,8 @@ class Backend(QObject):
     def push_event(self, event: dict, count_as_activity: bool = True):
         if count_as_activity:
             self.activity()
+        if event["type"] in STATUS_FOR_EVENT:
+            self.set_status(STATUS_FOR_EVENT[event["type"]], "detected")
         self._events.append(event)
         self._flush_waiter()
 
@@ -245,7 +269,9 @@ class Backend(QObject):
             elif cmd == "say":
                 self.activity()
                 self._instruction = str(msg.get("text", ""))
+                self._copy_text = str(msg.get("copy") or copy_text_for(self._instruction))
                 self.instructionChanged.emit()
+                self.set_status("Waiting for you…", "waiting")
                 self._add_history("claude", self._instruction)
                 element = int(msg.get("element") or 0)
                 if element:
@@ -258,6 +284,8 @@ class Backend(QObject):
                     reply({"ok": True})
             elif cmd == "read":
                 self.activity()
+                if self._status_kind != "waiting":
+                    self.set_status("Claude is reading the page…", "working")
 
                 def got(page):
                     if not isinstance(page, dict):
@@ -280,6 +308,7 @@ class Backend(QObject):
                 self._flush_waiter()
             elif cmd == "navigate":
                 self.activity()
+                self.set_status("Claude is opening a page…", "working")
                 self.navigateRequested.emit(normalize_url(str(msg.get("url", ""))))
                 reply({"ok": True})
             elif cmd == "close":

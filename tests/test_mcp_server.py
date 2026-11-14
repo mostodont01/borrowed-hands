@@ -20,9 +20,10 @@ class FakeClient:
         self.calls.append(("open", url))
         return {"ok": True, "started": True}
 
-    def say(self, text, element=None):
+    def say(self, text, element=None, copy=None):
         self._check()
         self.calls.append(("say", text, element))
+        self.copy = copy
         return {"ok": True, "highlighted": element != 99} if element else {"ok": True}
 
     def wait(self, timeout=50):

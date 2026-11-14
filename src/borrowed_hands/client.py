@@ -71,10 +71,12 @@ def open_window(url: str, start_timeout: float = 30.0) -> dict:
     raise RuntimeError(f"window did not start within {start_timeout:.0f} s, see {log_dir / 'window.log'}")
 
 
-def say(text: str, element: int | None = None) -> dict:
+def say(text: str, element: int | None = None, copy: str | None = None) -> dict:
     msg = {"cmd": "say", "text": text}
     if element:
         msg["element"] = element
+    if copy:
+        msg["copy"] = copy
     return request(msg)
 
 

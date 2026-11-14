@@ -140,3 +140,25 @@ def test_url_change_during_load_not_double_reported(setup, qtbot):
     backend.handle({"cmd": "wait", "timeout": 5}, replies.append)
     assert [e["type"] for e in replies[0]["events"]] == ["page_loaded"]
     assert "without_reload" not in replies[0]["events"][0]
+
+
+def test_say_sets_copy_text_and_waiting_status(setup):
+    backend, _, replies = setup
+    backend.handle({"cmd": "say", "text": 'Type "esperanza vr box" and press Enter'}, replies.append)
+    assert backend.copyText == "esperanza vr box"
+    assert (backend.status, backend.statusKind) == ("Waiting for you…", "waiting")
+    backend.handle({"cmd": "say", "text": 'Type "a"', "copy": "explicit"}, replies.append)
+    assert backend.copyText == "explicit"
+
+
+def test_status_shows_detection_instantly(setup):
+    backend, _, replies = setup
+    backend.handle({"cmd": "say", "text": "Search"}, replies.append)
+    backend.pageLoading()
+    assert backend.status == "Page loading…"
+    backend.pageLoaded("https://x.cz/?q=a", "X")
+    assert backend.statusKind == "detected" and "detected" in backend.status
+    backend.handle({"cmd": "read"}, lambda r: None)
+    assert backend.status == "Claude is reading the page…"
+    backend.done()
+    assert backend.status == "✓ Done sent to Claude"

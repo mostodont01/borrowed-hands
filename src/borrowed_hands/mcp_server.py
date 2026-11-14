@@ -71,10 +71,12 @@ async def open_browser(url: str) -> dict:
 
 
 @server.tool()
-async def instruct(text: str, element: int | None = None) -> dict:
+async def instruct(text: str, element: int | None = None, copy: str | None = None) -> dict:
     """Show an instruction in the panel (optionally highlight element N from read_page),
-    then wait up to ~50 s for the user. Returns events, or status "still_waiting"."""
-    said = await _call(client.say, text, element)
+    then wait up to ~50 s for the user. Returns events, or status "still_waiting".
+    The panel's Copy button copies `copy`, or else the first quoted part of `text`
+    (so put the text to type in quotes)."""
+    said = await _call(client.say, text, element, copy)
     if not said.get("ok"):
         return said
     result = await _call(client.wait, WAIT_SECONDS)

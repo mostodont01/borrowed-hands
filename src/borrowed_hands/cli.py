@@ -22,6 +22,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("say", help="show an instruction in the panel")
     p.add_argument("text")
     p.add_argument("-e", "--element", type=int, help="highlight element N from the last read")
+    p.add_argument("-c", "--copy", help="text for the Copy button (default: first quoted part)")
     p = sub.add_parser("read", help="print the current page as text")
     p.add_argument("--json", action="store_true", help="print the full JSON reply")
     p.add_argument("--full", action="store_true", help="don't hide repeated elements")
@@ -39,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
             case "open":
                 return _print(client.open_window(args.url))
             case "say":
-                return _print(client.say(args.text, args.element))
+                return _print(client.say(args.text, args.element, args.copy))
             case "read":
                 result = client.read(args.full)
                 if args.json or not result.get("ok"):
