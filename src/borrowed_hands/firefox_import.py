@@ -154,10 +154,20 @@ def _read_one(db: Path, domain: str) -> list[dict]:
                 "value": value or "",
                 "host": host,
                 "path": path or "/",
-                "expiry": int(expiry or 0),
+                "expiry": _expiry_seconds(expiry),
                 "secure": bool(is_secure),
                 "http_only": bool(is_http_only),
                 "same_site": SAMESITE.get(int(same_site or 0), "lax"),
             }
         )
     return cookies
+
+
+def _expiry_seconds(expiry) -> int:
+    """Expiry as a Unix time in seconds. Firefox usually stores seconds, but some builds (seen
+    on the snap) store milliseconds; a plain seconds value won't reach 1e10 until the year 2286,
+    so anything larger is milliseconds."""
+    value = int(expiry or 0)
+    if value > 10_000_000_000:
+        value //= 1000
+    return value

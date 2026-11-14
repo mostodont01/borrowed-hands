@@ -103,3 +103,16 @@ def test_reads_through_wal(tmp_path):
 def test_missing_database_raises():
     with pytest.raises(firefox_import.FirefoxError):
         firefox_import.read_cookies("alza.cz", "/nonexistent/path/cookies.sqlite")
+
+
+def test_millisecond_expiry_is_normalized(tmp_path):
+    p = tmp_path / "cookies.sqlite"
+    make_db(p, [("s", "v", ".alza.cz", "/", 1825614272501, 1, 1, 1)])  # ms, as Firefox snap stores
+    c = firefox_import.read_cookies("alza.cz", p)[0]
+    assert 1_700_000_000 < c["expiry"] < 2_000_000_000  # back to a sane seconds value
+
+
+def test_second_expiry_is_left_alone(tmp_path):
+    p = tmp_path / "cookies.sqlite"
+    make_db(p, [("s", "v", ".alza.cz", "/", 1825614272, 1, 1, 1)])  # already seconds
+    assert firefox_import.read_cookies("alza.cz", p)[0]["expiry"] == 1825614272
