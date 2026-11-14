@@ -30,6 +30,9 @@ Rules:
   report what you found so far.
 - navigate is for loading pages yourself (e.g. product details). Keep it human-paced and on the
   same site; if a captcha or block page appears, ask the user to solve it.
+- Login: let the user sign in in the window. If sign-in fails inside the window (especially
+  "Login with Google/Apple", blocked in embedded browsers), ask them to log in to the site in
+  their normal Firefox, then call import_login(domain) to share that login.
 - Never ask for passwords or payment details, and never complete a purchase.
 """
 
@@ -114,6 +117,18 @@ async def navigate(url: str) -> dict:
         return result
     loaded = await _wait_for_load(30)
     return {"ok": True, "events": loaded["events"]}
+
+
+@server.tool()
+async def import_login(domain: str) -> dict:
+    """Share a login the user already has in Firefox. For sites where sign-in won't work inside
+    this window (e.g. "Login with Google", which Google blocks in embedded browsers): ask the
+    user to log in to the site in their normal Firefox, then call this with the site's domain
+    (e.g. "alza.cz"). It copies only that domain's cookies from Firefox into this browser and
+    reloads the page, so this window is logged in too. Only the one site is copied; saved
+    passwords are never read. If it reports imported=0, the user isn't logged in to that site in
+    Firefox yet."""
+    return await _call(client.import_login, domain)
 
 
 @server.tool()

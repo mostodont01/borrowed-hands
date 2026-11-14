@@ -162,3 +162,100 @@ def test_status_shows_detection_instantly(setup):
     assert backend.status == "Claude is reading the page…"
     backend.done()
     assert backend.status == "✓ Done sent to Claude"
+
+
+def test_shorten_url_trims_long_query():
+    from borrowed_hands.app import shorten_url
+
+    short = "https://www.alza.cz/search.htm?exps=filament"
+    assert shorten_url(short) == short
+    long_q = "https://accounts.google.com/v3/signin?" + "state=" + "x" * 500 + "&email=me@x.cz"
+    out = shorten_url(long_q)
+    assert len(out) < 150 and out.startswith("https://accounts.google.com/v3/signin?")
+    assert "me@x.cz" not in out
+    assert shorten_url("about:blank") == "about:blank"
+
+
+def test_page_loaded_event_url_is_shortened(setup):
+    backend, _, replies = setup
+    backend.pageLoaded("https://x.cz/a?" + "q=" + "z" * 300, "T")
+    backend.handle({"cmd": "wait", "timeout": 5}, replies.append)
+    url = replies[0]["events"][0]["url"]
+    assert len(url) < 120 and url.endswith("…")
+    # internal state keeps the full URL
+    assert backend.url.endswith("z" * 300)
+
+
+class FakeStore:
+    def __init__(self):
+        self.cookies = []
+
+    def setCookie(self, cookie, origin):
+        self.cookies.append((bytes(cookie.name()).decode(), bytes(cookie.value()).decode(),
+                             origin.toString()))
+
+
+class FakeProfile:
+    def __init__(self):
+        self._store = FakeStore()
+
+    def cookieStore(self):
+        return self._store
+
+
+def test_import_login_injects_cookies(setup, monkeypatch):
+    backend, _, replies = setup
+    profile = FakeProfile()
+    backend.set_profile(profile)
+    backend.url = "https://www.alza.cz/"
+    navigated = []
+    backend.navigateRequested.connect(navigated.append)
+
+    from borrowed_hands import firefox_import
+
+    monkeypatch.setattr(
+        firefox_import, "read_cookies",
+        lambda domain, db_path=None: [
+            {"name": "sid", "value": "abc", "host": ".alza.cz", "path": "/", "expiry": 2000000000,
+             "secure": True, "http_only": True, "same_site": "lax"},
+        ],
+    )
+    backend.handle({"cmd": "import_login", "domain": "alza.cz"}, replies.append)
+    assert replies[0] == {"ok": True, "imported": 1, "domain": "alza.cz"}
+    assert profile._store.cookies[0][:2] == ("sid", "abc")
+    assert navigated == ["https://www.alza.cz/"]  # page reloaded to pick up the login
+    assert backend.statusKind == "detected"
+
+
+def test_import_login_reports_when_not_logged_in(setup, monkeypatch):
+    backend, _, replies = setup
+    backend.set_profile(FakeProfile())
+    from borrowed_hands import firefox_import
+
+    monkeypatch.setattr(firefox_import, "read_cookies", lambda domain, db_path=None: [])
+    backend.handle({"cmd": "import_login", "domain": "alza.cz"}, replies.append)
+    assert replies[0]["ok"] and replies[0]["imported"] == 0 and "note" in replies[0]
+
+
+def test_import_login_firefox_error(setup, monkeypatch):
+    backend, _, replies = setup
+    backend.set_profile(FakeProfile())
+    from borrowed_hands import firefox_import
+
+    def boom(domain, db_path=None):
+        raise firefox_import.FirefoxError("no Firefox cookie database found")
+
+    monkeypatch.setattr(firefox_import, "read_cookies", boom)
+    backend.handle({"cmd": "import_login", "domain": "alza.cz"}, replies.append)
+    assert replies[0]["ok"] is False and "Firefox" in replies[0]["error"]
+
+
+def test_set_cookie_builds_real_cookie():
+    from borrowed_hands.app import Backend
+
+    store = FakeStore()
+    ok = Backend._set_cookie(store, {
+        "name": "sid", "value": "v", "host": ".alza.cz", "path": "/", "expiry": 2000000000,
+        "secure": True, "http_only": True, "same_site": "strict",
+    })
+    assert ok and store.cookies[0] == ("sid", "v", "https://alza.cz/")

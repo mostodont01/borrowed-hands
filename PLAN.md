@@ -62,6 +62,12 @@ Two separate things:
 - User agent of normal desktop Chrome (the default "QtWebEngine" string gets blocked by some sites).
 - Password field contents are never sent to Claude.
 - If a captcha / block page appears, the panel asks the user to solve it.
+- **Login import** (`import_login(domain)`): for sites whose sign-in won't work in an
+  embedded browser (e.g. "Login with Google", which Google blocks), the user logs in to
+  the site in their normal Firefox and we copy only that one domain's cookies across.
+  Scoped and user-initiated, one site at a time; saved passwords are never read.
+- URLs shown to Claude are trimmed (OAuth redirect URLs carry long tokens and the
+  e-mail); e-mail/username field values are hidden like passwords.
 - Normal window with focus. On Wayland an app can't force "always on top".
 
 ## Milestones

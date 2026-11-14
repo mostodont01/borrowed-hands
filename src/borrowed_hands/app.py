@@ -8,6 +8,7 @@ connection (see protocol.py). Commands:
     read                       -> {ok, page: {url, title, elements, text}}
     wait {timeout}             -> {ok, status: "events" | "still_waiting", events: [...]}
     navigate {url}             -> start loading url
+    import_login {domain}      -> copy that site's cookies from Firefox (share its login)
     close                      -> close the window immediately
 """
 
@@ -17,9 +18,11 @@ import json
 import sys
 import time
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from PySide6.QtCore import (
     Property,
+    QDateTime,
     QEvent,
     QObject,
     QTimer,
@@ -28,7 +31,7 @@ from PySide6.QtCore import (
     Slot,
 )
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtNetwork import QLocalServer, QLocalSocket
+from PySide6.QtNetwork import QLocalServer, QLocalSocket, QNetworkCookie
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtWebEngineQuick import QQuickWebEngineProfile, QtWebEngineQuick
 
@@ -57,6 +60,23 @@ def normalize_url(url: str) -> str:
     return url
 
 
+def shorten_url(url: str, max_query: int = 80) -> str:
+    """Shorten a URL for Claude: keep scheme, host and path, trim huge query strings and
+    fragments (OAuth redirect URLs carry very long tokens that are noise and can include the
+    user's e-mail). The window keeps the full URL internally; only what Claude sees is trimmed."""
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    if not parts.scheme:
+        return url
+    query = parts.query
+    if len(query) > max_query:
+        query = query[:max_query] + "…"
+    fragment = parts.fragment if len(parts.fragment) <= 40 else parts.fragment[:40] + "…"
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, query, fragment))
+
+
 class Backend(QObject):
     """State shown in the window plus the command handling. QML talks to this object."""
 
@@ -82,6 +102,7 @@ class Backend(QObject):
         self._waiter = None  # (reply callback, QTimer)
         self._js_ids = itertools.count(1)
         self._js_callbacks: dict[int, callable] = {}
+        self._profile = None  # the web profile, for cookie import
         self._seconds_left = 0
         self.ended_reason: str | None = None
         self.url = ""
@@ -226,6 +247,8 @@ class Backend(QObject):
             self.activity()
         if event["type"] in STATUS_FOR_EVENT:
             self.set_status(STATUS_FOR_EVENT[event["type"]], "detected")
+        if "url" in event:  # trim long OAuth URLs before they reach Claude
+            event = {**event, "url": shorten_url(event["url"])}
         self._events.append(event)
         self._flush_waiter()
 
@@ -259,6 +282,72 @@ class Backend(QObject):
         request_id = next(self._js_ids)
         self._js_callbacks[request_id] = callback
         self.runJs.emit(request_id, script)
+
+    # ---- per-site login import ----------------------------------------------------------
+
+    def set_profile(self, profile):
+        self._profile = profile
+
+    def _import_login(self, domain: str, reply):
+        """Copy one site's cookies from Firefox into this browser, so it shares the login the
+        user already made in Firefox. Only the chosen domain; saved passwords are never read."""
+        domain = domain.strip()
+        if not domain:
+            reply({"ok": False, "error": "no domain given (e.g. import_login domain='alza.cz')"})
+            return
+        if self._profile is None:
+            reply({"ok": False, "error": "no browser profile available"})
+            return
+        from borrowed_hands import firefox_import
+
+        try:
+            cookies = firefox_import.read_cookies(domain)
+        except firefox_import.FirefoxError as exc:
+            reply({"ok": False, "error": str(exc)})
+            return
+        if not cookies:
+            reply(
+                {
+                    "ok": True,
+                    "imported": 0,
+                    "domain": domain,
+                    "note": f"no cookies for {domain} found in Firefox — "
+                    f"log in to {domain} in Firefox first, then import again",
+                }
+            )
+            return
+
+        store = self._profile.cookieStore()
+        count = 0
+        for c in cookies:
+            if self._set_cookie(store, c):
+                count += 1
+        self.set_status(f"✓ Imported {count} cookies for {domain}", "detected")
+        reply({"ok": True, "imported": count, "domain": domain})
+        if self.url and self.url not in ("about:blank", ""):  # reload so the site sees the login
+            self.navigateRequested.emit(self.url)
+
+    @staticmethod
+    def _set_cookie(store, c: dict) -> bool:
+        try:
+            cookie = QNetworkCookie(c["name"].encode(), c["value"].encode())
+            host = c["host"]
+            cookie.setDomain(host)
+            cookie.setPath(c["path"])
+            cookie.setSecure(bool(c["secure"]))
+            cookie.setHttpOnly(bool(c["http_only"]))
+            if c["expiry"] > 0:
+                cookie.setExpirationDate(QDateTime.fromSecsSinceEpoch(int(c["expiry"])))
+            enum_name = {"none": "None_", "lax": "Lax", "strict": "Strict"}.get(c["same_site"])
+            enum = getattr(QNetworkCookie.SameSite, enum_name, None) if enum_name else None
+            if enum is not None:
+                cookie.setSameSitePolicy(enum)
+            scheme = "https" if c["secure"] else "http"
+            origin = QUrl(f"{scheme}://{host.lstrip('.')}/")
+            store.setCookie(cookie, origin)
+            return True
+        except (UnicodeEncodeError, ValueError, TypeError):
+            return False
 
     # ---- commands from the socket ------------------------------------------------------
 
@@ -295,6 +384,7 @@ class Backend(QObject):
                     items = page.pop("items", [])
                     text = pagetext.format_page({**page, "items": items}, full=bool(msg.get("full")))
                     page["text"] = protocol.truncate_page(text)
+                    page["url"] = shorten_url(page.get("url", ""))
                     reply({"ok": True, "page": page})
 
                 self.run_js(READ_JS, got)
@@ -312,6 +402,9 @@ class Backend(QObject):
                 self.set_status("Claude is opening a page…", "working")
                 self.navigateRequested.emit(normalize_url(str(msg.get("url", ""))))
                 reply({"ok": True})
+            elif cmd == "import_login":
+                self.activity()
+                self._import_login(str(msg.get("domain", "")), reply)
             elif cmd == "close":
                 reply({"ok": True})
                 self.end_session("closed_by_claude")
@@ -400,6 +493,7 @@ def create_profile(profile_dir: Path, parent: QObject) -> QQuickWebEngineProfile
 def create_window(engine: QQmlApplicationEngine, backend: Backend, url: str, profile_dir: Path):
     ctx = engine.rootContext()
     profile = create_profile(profile_dir, engine)
+    backend.set_profile(profile)
     ctx.setContextProperty("webProfile", profile)
     ctx.setContextProperty("backend", backend)
     ctx.setContextProperty("startUrl", normalize_url(url))

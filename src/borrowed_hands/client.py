@@ -96,6 +96,10 @@ def navigate(url: str) -> dict:
     return request({"cmd": "navigate", "url": url})
 
 
+def import_login(domain: str) -> dict:
+    return request({"cmd": "import_login", "domain": domain}, timeout=30)
+
+
 def close() -> dict:
     try:
         return request({"cmd": "close"})

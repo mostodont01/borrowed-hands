@@ -40,7 +40,14 @@
 			const type = (el.getAttribute("type") || "text").toLowerCase();
 			kind = tag === "textarea" ? "textarea" : "input:" + type;
 			label = label || clean(el.placeholder || el.name || "");
+			// Never leak what the user typed into credential-ish fields (e-mail, username).
+			const ac = (el.getAttribute("autocomplete") || "").toLowerCase();
+			const nameId = ((el.name || "") + " " + (el.id || "")).toLowerCase();
+			const credential = type === "password" || type === "email"
+				|| ac.includes("username") || ac.includes("email")
+				|| /(^|[^a-z])(user|username|email|login)([^a-z]|$)/.test(nameId);
 			if (type === "password") extra = " (password, value hidden)";
+			else if (credential) extra = el.value ? " (filled, value hidden)" : "";
 			else if (type === "checkbox" || type === "radio") extra = el.checked ? " [x]" : " [ ]";
 			else if (type !== "hidden" && el.value) extra = ` value="${short(clean(el.value))}"`;
 		} else if (tag === "select") {

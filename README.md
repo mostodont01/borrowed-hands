@@ -17,6 +17,7 @@ uv run hands say "Search for 'USB WiFi dongle'"
 uv run hands wait                  # waits for a page load, Done, a reply, or the timeout
 uv run hands read                  # the page as text, interactive elements numbered (--full: no hiding)
 uv run hands say "Open this one" -e 12   # highlight element 12
+uv run hands import alza.cz    # share your Firefox login for this site
 uv run hands close
 ```
 
@@ -29,8 +30,7 @@ closes a minute later.
 claude mcp add -s user borrowed-hands -- "$PWD/.venv/bin/hands" mcp
 ```
 
-Then ask Claude e.g. "find a USB Wi-Fi dongle on Alza". Tools: `open_browser`, `instruct`,
-`wait`, `read_page`, `navigate`, `close_browser`.
+Then ask Claude e.g. "find a USB Wi-Fi dongle on Alza". Tools: `open_browser`, `instruct`, `wait`, `read_page`, `navigate`, `import_login`, `close_browser`.
 
 ## Development
 

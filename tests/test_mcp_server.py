@@ -64,7 +64,8 @@ def run(coro):
 
 def test_tools_registered():
     names = {t.name for t in anyio.run(mcp_server.server.list_tools)}
-    assert names == {"open_browser", "instruct", "wait", "read_page", "navigate", "close_browser"}
+    assert names == {"open_browser", "instruct", "wait", "read_page", "navigate",
+                     "import_login", "close_browser"}
 
 
 def test_open_browser_waits_for_load(fake):

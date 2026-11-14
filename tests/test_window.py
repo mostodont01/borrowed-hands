@@ -122,3 +122,18 @@ def test_cookies_survive_restart(window_env):
         assert "cookie=consent=yes" in client.read()["page"]["text"]
     finally:
         httpd.shutdown()
+
+
+def test_credential_fields_are_hidden(window_env):
+    client.open_window("file://" + os.path.join(PAGES, "login.html"))
+    wait_for("page_loaded")
+    text = client.read()["page"]["text"]
+    # credential-ish fields: values hidden
+    assert "me@example.com" not in text
+    assert "otoskypala0" not in text
+    assert "hunter2" not in text
+    assert "secretuser" not in text
+    assert "(filled, value hidden)" in text
+    assert "(password, value hidden)" in text
+    # a normal field still shows its value
+    assert 'value="search terms"' in text
