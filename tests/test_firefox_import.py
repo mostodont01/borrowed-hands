@@ -116,3 +116,24 @@ def test_second_expiry_is_left_alone(tmp_path):
     p = tmp_path / "cookies.sqlite"
     make_db(p, [("s", "v", ".alza.cz", "/", 1825614272, 1, 1, 1)])  # already seconds
     assert firefox_import.read_cookies("alza.cz", p)[0]["expiry"] == 1825614272
+
+
+def test_firefox_user_agent_format(monkeypatch):
+    import subprocess as sp
+
+    class R:
+        stdout = "Mozilla Firefox 154.0\n"
+
+    monkeypatch.setattr(sp, "run", lambda *a, **k: R())
+    ua = firefox_import.firefox_user_agent()
+    assert ua == "Mozilla/5.0 (X11; Linux x86_64; rv:154.0) Gecko/20100101 Firefox/154.0"
+
+
+def test_firefox_user_agent_missing(monkeypatch):
+    import subprocess as sp
+
+    def boom(*a, **k):
+        raise FileNotFoundError
+
+    monkeypatch.setattr(sp, "run", boom)
+    assert firefox_import.firefox_user_agent() is None

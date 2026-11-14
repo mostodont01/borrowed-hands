@@ -45,3 +45,12 @@ def test_profile_is_persistent(qapp, qtbot, tmp_path):
     assert profile.property("persistentStoragePath") == str(tmp_path / "profile")
     assert "QtWebEngine" not in profile.property("httpUserAgent")
     window.close()
+
+
+def test_user_agent_env_override(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("HANDS_USER_AGENT", "Mozilla/5.0 CustomUA/9")
+    engine = QQmlApplicationEngine()
+    window = create_window(engine, Backend(), "about:blank", tmp_path / "profile")
+    profile = window.findChild(QObject, "webView").property("profile")
+    assert profile.property("httpUserAgent") == "Mozilla/5.0 CustomUA/9"
+    window.close()

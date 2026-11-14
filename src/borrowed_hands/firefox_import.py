@@ -12,8 +12,10 @@ Deliberately narrow:
 
 import configparser
 import os
+import re
 import shutil
 import sqlite3
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -23,6 +25,23 @@ SAMESITE = {0: "none", 1: "lax", 2: "strict"}
 
 class FirefoxError(Exception):
     """Firefox profile or cookie database could not be read."""
+
+
+def firefox_user_agent() -> str | None:
+    """A Firefox desktop User-Agent matching the installed version, or None if Firefox isn't
+    found. Used to present the import window as the same browser that made the login, in case a
+    site ties its session to the User-Agent."""
+    try:
+        out = subprocess.run(
+            ["firefox", "--version"], capture_output=True, text=True, timeout=10
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    match = re.search(r"(\d+)\.\d+", out)
+    if not match:
+        return None
+    major = match.group(1)
+    return f"Mozilla/5.0 (X11; Linux x86_64; rv:{major}.0) Gecko/20100101 Firefox/{major}.0"
 
 
 def _firefox_roots() -> list[Path]:

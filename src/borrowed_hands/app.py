@@ -13,6 +13,7 @@ connection (see protocol.py). Commands:
 """
 
 import itertools
+import os
 import re
 import json
 import sys
@@ -485,8 +486,18 @@ def create_profile(profile_dir: Path, parent: QObject) -> QQuickWebEngineProfile
     profile.setCachePath(str(profile_dir / "cache"))
     # Keep session cookies too (cookie consent, carts), like a browser that restores tabs.
     profile.setPersistentCookiesPolicy(QQuickWebEngineProfile.PersistentCookiesPolicy.ForcePersistentCookies)
-    # The default user agent says "QtWebEngine", which some sites block.
-    profile.setHttpUserAgent(re.sub(r"QtWebEngine/\S+\s*", "", profile.httpUserAgent()))
+    # User agent. By default just strip "QtWebEngine" (some sites block it). HANDS_USER_AGENT
+    # overrides it; the special value "firefox" matches the installed Firefox, so a login
+    # imported from Firefox is used under the same browser identity.
+    ua = os.environ.get("HANDS_USER_AGENT", "").strip()
+    if ua == "firefox":
+        from borrowed_hands import firefox_import
+
+        ua = firefox_import.firefox_user_agent() or ""
+    if ua:
+        profile.setHttpUserAgent(ua)
+    else:
+        profile.setHttpUserAgent(re.sub(r"QtWebEngine/\S+\s*", "", profile.httpUserAgent()))
     return profile
 
 
