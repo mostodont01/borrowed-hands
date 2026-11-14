@@ -21,12 +21,6 @@ ApplicationWindow {
 
 	onClosing: backend.windowClosing()
 
-	WebEngineProfilePrototype {
-		id: profileProto
-		storageName: "borrowed-hands"
-		persistentStoragePath: profilePath
-	}
-
 	Connections {
 		target: backend
 		function onNavigateRequested(url) { web.url = url }
@@ -82,15 +76,12 @@ ApplicationWindow {
 
 			WebEngineView {
 				id: web
+				objectName: "webView"
 				Layout.fillWidth: true
 				Layout.fillHeight: true
-				profile: profileProto.instance()
+				profile: webProfile
 				url: startUrl
 
-				Component.onCompleted: {
-					// The default user agent says "QtWebEngine", which some sites block.
-					profile.httpUserAgent = profile.httpUserAgent.replace(/QtWebEngine\/\S+\s*/, "")
-				}
 				onLoadingChanged: function (info) {
 					if (info.status === WebEngineView.LoadStartedStatus)
 						backend.pageLoading()

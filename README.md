@@ -6,7 +6,7 @@ Claude opens a browser window with a panel on the right, tells you what to do ("
 'USB WiFi dongle'"), reads the pages itself and closes the window when it has what it needs.
 You click and type in a real browser, so sites like Alza see a real person.
 
-Status: window app, CLI and MCP server done; next: first real sessions on Alza. See [PLAN.md](PLAN.md).
+Status: usable. Tested in real sessions on Alza (search, reading results, product pages). See [PLAN.md](PLAN.md).
 
 ## Try it
 

@@ -84,3 +84,41 @@ def test_url_change_without_reload(window_env):
     event = wait_for("page_loaded")
     assert event.get("without_reload") and event["url"].endswith("?q=dongle")
     assert "2 results" in client.read()["page"]["text"]
+
+
+def test_cookies_survive_restart(window_env):
+    """Open a local http page that sets a cookie, close the window, reopen: the cookie is back."""
+    import http.server
+    import threading
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            seen = self.headers.get("Cookie") or "none"
+            body = f"<html><head><title>c</title></head><body>cookie={seen}</body></html>".encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Set-Cookie", "consent=yes; Max-Age=86400; Path=/")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    httpd = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{httpd.server_port}/"
+    try:
+        client.open_window(url)
+        wait_for("page_loaded")
+        assert "cookie=none" in client.read()["page"]["text"]
+        client.close()
+        deadline = time.monotonic() + 10
+        while client.is_running() and time.monotonic() < deadline:
+            time.sleep(0.1)
+        time.sleep(1)  # let the old process flush the cookie store and exit
+
+        client.open_window(url)
+        wait_for("page_loaded")
+        assert "cookie=consent=yes" in client.read()["page"]["text"]
+    finally:
+        httpd.shutdown()

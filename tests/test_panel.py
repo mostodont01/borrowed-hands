@@ -34,3 +34,14 @@ def test_status_line_follows_backend(qapp, qtbot, tmp_path):
     backend.pageLoaded("https://x.cz/?q=a", "X")
     qtbot.waitUntil(lambda: status.property("text").startswith("✓ Page change detected"))
     window.close()
+
+
+def test_profile_is_persistent(qapp, qtbot, tmp_path):
+    backend = Backend()
+    engine = QQmlApplicationEngine()
+    window = create_window(engine, backend, "about:blank", tmp_path / "profile")
+    profile = window.findChild(QObject, "webView").property("profile")
+    assert profile.property("offTheRecord") is False
+    assert profile.property("persistentStoragePath") == str(tmp_path / "profile")
+    assert "QtWebEngine" not in profile.property("httpUserAgent")
+    window.close()

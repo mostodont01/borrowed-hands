@@ -12,6 +12,7 @@ connection (see protocol.py). Commands:
 """
 
 import itertools
+import re
 import json
 import sys
 import time
@@ -29,7 +30,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
-from PySide6.QtWebEngineQuick import QtWebEngineQuick
+from PySide6.QtWebEngineQuick import QQuickWebEngineProfile, QtWebEngineQuick
 
 from borrowed_hands import pagetext, paths, protocol
 from borrowed_hands.instruction import STATUS_FOR_EVENT, copy_text_for
@@ -381,12 +382,27 @@ class InputWatcher(QObject):
         return False
 
 
-def create_window(engine: QQmlApplicationEngine, backend: Backend, url: str, profile_dir: Path):
+def create_profile(profile_dir: Path, parent: QObject) -> QQuickWebEngineProfile:
+    """A persistent browser profile: cookies, logins and passed captchas survive restarts."""
     profile_dir.mkdir(parents=True, exist_ok=True)
+    profile = QQuickWebEngineProfile(parent)
+    profile.setStorageName("borrowed-hands")
+    profile.setOffTheRecord(False)
+    profile.setPersistentStoragePath(str(profile_dir))
+    profile.setCachePath(str(profile_dir / "cache"))
+    # Keep session cookies too (cookie consent, carts), like a browser that restores tabs.
+    profile.setPersistentCookiesPolicy(QQuickWebEngineProfile.PersistentCookiesPolicy.ForcePersistentCookies)
+    # The default user agent says "QtWebEngine", which some sites block.
+    profile.setHttpUserAgent(re.sub(r"QtWebEngine/\S+\s*", "", profile.httpUserAgent()))
+    return profile
+
+
+def create_window(engine: QQmlApplicationEngine, backend: Backend, url: str, profile_dir: Path):
     ctx = engine.rootContext()
+    profile = create_profile(profile_dir, engine)
+    ctx.setContextProperty("webProfile", profile)
     ctx.setContextProperty("backend", backend)
     ctx.setContextProperty("startUrl", normalize_url(url))
-    ctx.setContextProperty("profilePath", str(profile_dir))
     engine.load(QUrl.fromLocalFile(str(HERE / "qml" / "Main.qml")))
     if not engine.rootObjects():
         raise RuntimeError("failed to load Main.qml")

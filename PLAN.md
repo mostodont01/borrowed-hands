@@ -66,9 +66,11 @@ Two separate things:
 
 ## Milestones
 
-1. **Window app**: web view, panel, timeout popup, profile, local socket, CLI. Headless tests
+Status 2026-11-14: milestones 1–3 done (three real Alza sessions worked). Milestone 4 is optional polish.
+
+1. ✅ **Window app**: web view, panel, timeout popup, profile, local socket, CLI. Headless tests
    against local test pages.
-2. **MCP server**: the tools above; check Claude Code's real tool timeout and tune `wait`.
-3. **First real Alza session**: search, compare, close. Fix what gets in the way.
+2. ✅ **MCP server**: the tools above; check Claude Code's real tool timeout and tune `wait`.
+3. ✅ **First real Alza session**: search, compare, close. Fix what gets in the way.
 4. **Polish**: a Claude Code skill for guiding a human (one short step at a time), optional
    product-list extractors, app menu entry.
